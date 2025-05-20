@@ -134,11 +134,11 @@ export default function DevicesPage() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-4">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Devices</h1>
+    <div className="max-w-7xl mx-auto p-4 md:p-8">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+        <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 tracking-tight">Devices</h1>
         <button
-          className="bg-gradient-to-r from-yellow-700 to-yellow-400 hover:from-yellow-800 hover:to-yellow-500 text-white font-semibold px-5 py-2 rounded-lg flex items-center gap-2 shadow-lg"
+          className="bg-gradient-to-r from-yellow-700 to-yellow-400 hover:from-yellow-800 hover:to-yellow-500 text-white font-semibold px-5 py-2 rounded-lg flex items-center gap-2 shadow-lg transition-all duration-200"
           onClick={handleAddDevice}
           disabled={loading}
         >
@@ -147,17 +147,17 @@ export default function DevicesPage() {
       </div>
       {error && <div className="text-red-500 text-sm mb-4">{error}</div>}
       {/* Device Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
         {loading ? (
           <div className="col-span-full text-center text-gray-400">Loading...</div>
         ) : devices.length === 0 ? (
           <div className="col-span-full text-center text-gray-400">No devices found.</div>
         ) : (
           devices.map((device) => (
-            <div key={device.id} className="bg-white rounded-2xl shadow-lg p-6 flex flex-col gap-4 border-t-4 border-yellow-400 relative hover:shadow-2xl transition-shadow">
+            <div key={device.id} className="bg-white rounded-2xl shadow-lg p-6 flex flex-col gap-4 border-t-4 border-yellow-400 relative hover:shadow-2xl transition-shadow group">
               <div className="absolute top-4 right-4">
                 <button
-                  className="bg-gradient-to-r from-yellow-700 to-yellow-400 text-white font-semibold px-4 py-1 rounded-lg text-sm shadow"
+                  className="bg-gradient-to-r from-yellow-700 to-yellow-400 text-white font-semibold px-4 py-1 rounded-lg text-sm shadow group-hover:scale-105 transition-transform"
                   onClick={() => handleManageDevice(device)}
                   disabled={loading}
                 >
@@ -167,7 +167,7 @@ export default function DevicesPage() {
               <div className="flex items-center gap-4 mb-2">
                 {deviceTypeIcon(device.device_type)}
                 <div>
-                  <div className="font-semibold text-lg text-gray-900">{device.name}</div>
+                  <div className="font-semibold text-lg md:text-xl text-gray-900">{device.name}</div>
                   <div className="text-gray-500 text-sm">{device.status || 'Connected'}</div>
                   <div className="text-gray-400 text-xs">{device.device_type}</div>
                 </div>
@@ -176,7 +176,7 @@ export default function DevicesPage() {
                 <span className="text-xs text-gray-400">MAC: {device.mac_address}</span>
                 <button
                   onClick={() => deleteDevice(device.id)}
-                  className="bg-red-500 text-white px-3 py-1 rounded shadow hover:bg-red-600 text-xs"
+                  className="bg-red-500 text-white px-3 py-1 rounded shadow hover:bg-red-600 text-xs focus:outline-none focus:ring-2 focus:ring-red-400"
                   disabled={loading}
                 >
                   Delete
