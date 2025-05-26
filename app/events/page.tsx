@@ -16,6 +16,14 @@ interface Event {
   notes?: string;
 }
 
+const ClientDate: React.FC<{ date: string }> = ({ date }) => {
+  const [dateStr, setDateStr] = React.useState('');
+  React.useEffect(() => {
+    setDateStr(new Date(date).toLocaleString());
+  }, [date]);
+  return <span>{dateStr}</span>;
+};
+
 export default function EventsPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,9 +115,7 @@ export default function EventsPage() {
                   <div className="flex justify-between items-start">
                     <div>
                       <h3 className="font-semibold">{event.type}</h3>
-                      <p className="text-sm text-gray-600">
-                        {new Date(event.timestamp).toLocaleString()}
-                      </p>
+                      <p className="text-sm text-gray-600"><ClientDate date={event.timestamp} /></p>
                     </div>
                     <span className={`px-2 py-1 rounded-full text-sm ${
                       event.severity === 'high' ? 'bg-red-100 text-red-800' :
@@ -152,7 +158,7 @@ export default function EventsPage() {
                   <h3 className="font-semibold">Details</h3>
                   <p>Class: {selectedEvent.class}</p>
                   <p>Severity: {selectedEvent.severity}</p>
-                  <p>Time: {new Date(selectedEvent.timestamp).toLocaleString()}</p>
+                  <p>Time: <ClientDate date={selectedEvent.timestamp} /></p>
                 </div>
                 {selectedEvent.notes && (
                   <div>
