@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
 import { useDeviceMonitoring } from '../utils/useDeviceMonitoring';
 import { supabase } from '../utils/supabase';
@@ -23,42 +25,50 @@ const ObjectCard: React.FC<ObjectCardProps> = ({
   object,
   onEdit,
   onRemove,
-}) => (
-  <div className={`border p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow ${
-    object.status === 'protected' ? 'bg-green-50' :
-    object.status === 'at_risk' ? 'bg-yellow-50' :
-    'bg-red-50'
-  }`}>
-    <div className="flex justify-between items-start">
-      <div>
-        <h3 className="text-lg font-semibold">{object.name}</h3>
-        <p className="text-sm text-gray-600">Type: {object.type}</p>
-        <p className="text-sm text-gray-600">Location: {object.location}</p>
-        <p className="text-sm text-gray-600">Status: {object.status}</p>
-        <p className="text-sm text-gray-600">
-          Last Checked: {object.lastChecked.toLocaleString()}
-        </p>
-        <p className="text-sm text-gray-600">
-          Sensitivity: {object.sensitivity}
-        </p>
-      </div>
-      <div className="flex gap-2">
-        <button
-          onClick={() => onEdit(object)}
-          className="text-blue-500 hover:text-blue-700"
-        >
-          Edit
-        </button>
-        <button
-          onClick={() => onRemove(object.id)}
-          className="text-red-500 hover:text-red-700"
-        >
-          Remove
-        </button>
+}) => {
+  const [lastCheckedStr, setLastCheckedStr] = React.useState('');
+
+  React.useEffect(() => {
+    setLastCheckedStr(object.lastChecked.toLocaleString());
+  }, [object.lastChecked]);
+
+  return (
+    <div className={`border p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow ${
+      object.status === 'protected' ? 'bg-green-50' :
+      object.status === 'at_risk' ? 'bg-yellow-50' :
+      'bg-red-50'
+    }`}>
+      <div className="flex justify-between items-start">
+        <div>
+          <h3 className="text-lg font-semibold">{object.name}</h3>
+          <p className="text-sm text-gray-600">Type: {object.type}</p>
+          <p className="text-sm text-gray-600">Location: {object.location}</p>
+          <p className="text-sm text-gray-600">Status: {object.status}</p>
+          <p className="text-sm text-gray-600">
+            Last Checked: {lastCheckedStr}
+          </p>
+          <p className="text-sm text-gray-600">
+            Sensitivity: {object.sensitivity}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => onEdit(object)}
+            className="text-blue-500 hover:text-blue-700"
+          >
+            Edit
+          </button>
+          <button
+            onClick={() => onRemove(object.id)}
+            className="text-red-500 hover:text-red-700"
+          >
+            Remove
+          </button>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 const DEFAULT_OBJECTS: ProtectedObject[] = [
   {

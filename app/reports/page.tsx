@@ -32,6 +32,14 @@ interface ThreatReport {
   status: 'active' | 'resolved';
 }
 
+const ClientDate: React.FC<{ date: string }> = ({ date }) => {
+  const [dateStr, setDateStr] = React.useState('');
+  React.useEffect(() => {
+    setDateStr(new Date(date).toLocaleString());
+  }, [date]);
+  return <span>{dateStr}</span>;
+};
+
 export default function ReportsPage() {
   const [visitorLogs, setVisitorLogs] = useState<VisitorLog[]>([]);
   const [triggerLogs, setTriggerLogs] = useState<TriggerLog[]>([]);
@@ -186,9 +194,7 @@ export default function ReportsPage() {
                                 Duration: {Math.floor(log.duration / 60)} minutes
                               </p>
                             </div>
-                            <p className="text-sm text-gray-500">
-                              {new Date(log.timestamp).toLocaleString()}
-                            </p>
+                            <p className="text-sm text-gray-500"><ClientDate date={log.timestamp} /></p>
                           </div>
                         </div>
                       ))
@@ -229,9 +235,7 @@ export default function ReportsPage() {
                                 Actions: {log.actions_taken.join(', ')}
                               </p>
                             </div>
-                            <p className="text-sm text-gray-500">
-                              {new Date(log.timestamp).toLocaleString()}
-                            </p>
+                            <p className="text-sm text-gray-500"><ClientDate date={log.timestamp} /></p>
                           </div>
                         </div>
                       ))
@@ -281,9 +285,7 @@ export default function ReportsPage() {
                                 {report.description}
                               </p>
                             </div>
-                            <p className="text-sm text-gray-500">
-                              {new Date(report.timestamp).toLocaleString()}
-                            </p>
+                            <p className="text-sm text-gray-500"><ClientDate date={report.timestamp} /></p>
                           </div>
                         </div>
                       ))

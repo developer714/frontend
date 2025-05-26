@@ -48,6 +48,14 @@ interface FaceMetrics {
   last_seen: string;
 }
 
+const FaceLastSeen: React.FC<{ date: string }> = ({ date }) => {
+  const [dateStr, setDateStr] = React.useState('');
+  React.useEffect(() => {
+    setDateStr(new Date(date).toLocaleString());
+  }, [date]);
+  return <span>{dateStr}</span>;
+};
+
 export default function AnalyticsPage() {
   const [eventMetrics, setEventMetrics] = useState<EventMetrics[]>([]);
   const [deviceMetrics, setDeviceMetrics] = useState<DeviceMetrics[]>([]);
@@ -58,9 +66,15 @@ export default function AnalyticsPage() {
     end: new Date().toISOString().split('T')[0]
   });
 
+  const [eventLabels, setEventLabels] = React.useState<string[]>([]);
+
   useEffect(() => {
     fetchData();
   }, [dateRange]);
+
+  useEffect(() => {
+    setEventLabels(eventMetrics.map(metric => new Date(metric.date).toLocaleDateString()));
+  }, [eventMetrics]);
 
   const fetchData = async () => {
     try {
@@ -98,7 +112,7 @@ export default function AnalyticsPage() {
   };
 
   const eventChartData = {
-    labels: eventMetrics.map(metric => new Date(metric.date).toLocaleDateString()),
+    labels: eventLabels,
     datasets: [
       {
         label: 'Events',
@@ -249,7 +263,7 @@ export default function AnalyticsPage() {
                             Visit Count: {metric.visit_count}
                           </p>
                           <p className="text-sm text-gray-600">
-                            Last Seen: {new Date(metric.last_seen).toLocaleString()}
+                            Last Seen: <FaceLastSeen date={metric.last_seen} />
                           </p>
                         </div>
                       </div>
