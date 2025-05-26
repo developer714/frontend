@@ -5,46 +5,90 @@ import * as faceDetection from '@tensorflow-models/face-detection';
 import { supabase } from '../utils/supabase';
 import { useSupabaseUser } from '../utils/useSupabaseUser';
 
-export type FaceType = 'friendly' | 'unfriendly';
+export type FaceClass = 'Friend' | 'Unknown' | 'Foe';
+export type BehaviorProfile = 'normal' | 'suspicious' | 'threatening' | 'custom';
 
 export interface Face {
   id: string;
   name: string;
-  type: FaceType;
+  class: FaceClass;
+  behaviorProfile: BehaviorProfile;
   confidence: number;
   lastSeen: Date;
+  history: {
+    timestamp: Date;
+    action: string;
+    location: string;
+  }[];
+  notes?: string;
+  triggers?: string[];
+  image_url: string;
 }
 
 interface FaceCardProps {
   face: Face;
   onRemove: (id: string) => void;
+  onEdit: (face: Face) => void;
 }
 
-const FaceCard: React.FC<FaceCardProps> = ({ face, onRemove }) => (
+const FaceCard: React.FC<FaceCardProps> = ({ face, onRemove, onEdit }) => (
   <div
-    className={`p-3 rounded-lg ${
-      face.type === 'friendly'
+    className={`p-4 rounded-lg ${
+      face.class === 'Friend'
         ? 'bg-green-100 border border-green-300'
-        : 'bg-red-100 border border-red-300'
+        : face.class === 'Foe'
+        ? 'bg-red-100 border border-red-300'
+        : 'bg-yellow-100 border border-yellow-300'
     }`}
   >
-    <div className="flex justify-between items-center">
+    <div className="flex justify-between items-start">
       <div>
-        <p className="font-medium">{face.name}</p>
+        <p className="font-medium text-lg">{face.name}</p>
         <p className="text-sm text-gray-600">
-          Type: {face.type}
+          Class: {face.class}
+        </p>
+        <p className="text-sm text-gray-600">
+          Behavior: {face.behaviorProfile}
         </p>
         <p className="text-sm text-gray-600">
           Confidence: {face.confidence}%
         </p>
+        <p className="text-sm text-gray-600">
+          Last Seen: {face.lastSeen.toLocaleString()}
+        </p>
+        {face.notes && (
+          <p className="text-sm text-gray-600 mt-2">
+            Notes: {face.notes}
+          </p>
+        )}
       </div>
-      <button
-        onClick={() => onRemove(face.id)}
-        className="text-red-500 hover:text-red-700"
-      >
-        Remove
-      </button>
+      <div className="flex gap-2">
+        <button
+          onClick={() => onEdit(face)}
+          className="text-blue-500 hover:text-blue-700"
+        >
+          Edit
+        </button>
+        <button
+          onClick={() => onRemove(face.id)}
+          className="text-red-500 hover:text-red-700"
+        >
+          Remove
+        </button>
+      </div>
     </div>
+    {face.history.length > 0 && (
+      <div className="mt-4">
+        <h4 className="font-medium mb-2">Recent History</h4>
+        <div className="space-y-2">
+          {face.history.slice(0, 3).map((entry, index) => (
+            <div key={index} className="text-sm text-gray-600">
+              {entry.timestamp.toLocaleString()} - {entry.action} at {entry.location}
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
   </div>
 );
 
@@ -71,6 +115,7 @@ const VideoStream: React.FC<VideoStreamProps> = ({ videoRef, canvasRef, isStream
 
 const useFaceDetection = () => {
   const [detector, setDetector] = useState<faceDetection.FaceDetector | null>(null);
+  const [unassignedFaces, setUnassignedFaces] = useState<Face[]>([]);
   const { addAlert } = useDeviceMonitoring();
 
   useEffect(() => {
@@ -97,7 +142,38 @@ const useFaceDetection = () => {
     loadModel();
   }, [addAlert]);
 
-  return detector;
+  const checkDailyReview = async () => {
+    try {
+      const { data: settings } = await supabase
+        .from('user_settings')
+        .select('daily_review_time')
+        .single();
+
+      if (settings?.daily_review_time) {
+        const now = new Date();
+        const reviewTime = new Date(settings.daily_review_time);
+        
+        if (now.getHours() === reviewTime.getHours() && 
+            now.getMinutes() === reviewTime.getMinutes()) {
+          // Show review prompt
+          addAlert('system', {
+            type: 'unknown_face',
+            severity: 'low',
+            message: 'Time to review unassigned faces'
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error checking daily review:', error);
+    }
+  };
+
+  useEffect(() => {
+    const interval = setInterval(checkDailyReview, 60000); // Check every minute
+    return () => clearInterval(interval);
+  }, []);
+
+  return { detector, unassignedFaces, setUnassignedFaces };
 };
 
 const useVideoStream = (isStreaming: boolean, detector: faceDetection.FaceDetector | null) => {
@@ -137,9 +213,12 @@ const useVideoStream = (isStreaming: boolean, detector: faceDetection.FaceDetect
           const newFace: Face = {
             id: Math.random().toString(36).substr(2, 9),
             name: 'Unknown',
-            type: 'unfriendly',
+            class: 'Unknown',
+            behaviorProfile: 'normal',
             confidence: Math.round(face.score * 100),
-            lastSeen: new Date()
+            lastSeen: new Date(),
+            history: [],
+            image_url: ''
           };
           setFaces(prev => {
             const exists = prev.some(f => f.id === newFace.id);
@@ -197,70 +276,228 @@ const useVideoStream = (isStreaming: boolean, detector: faceDetection.FaceDetect
 
 export const FacialRecognition: React.FC = () => {
   const [isStreaming, setIsStreaming] = useState(false);
-  const [labelModal, setLabelModal] = useState<{embedding: number[], image: string} | null>(null);
-  const user = useSupabaseUser();
-  
-  const detector = useFaceDetection();
-  const {
-    videoRef,
-    canvasRef,
-    faces,
-    setFaces
-  } = useVideoStream(isStreaming, detector);
+  const [faces, setFaces] = useState<Face[]>([]);
+  const [selectedFace, setSelectedFace] = useState<Face | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [showReviewPrompt, setShowReviewPrompt] = useState(false);
+  const { detector, unassignedFaces, setUnassignedFaces } = useFaceDetection();
+  const { videoRef, canvasRef, faces: detectedFaces, setFaces: setDetectedFaces } = useVideoStream(isStreaming, detector);
 
-  const toggleStreaming = () => {
-    setIsStreaming(!isStreaming);
+  const handleEditFace = (face: Face) => {
+    setSelectedFace(face);
+    setIsEditing(true);
   };
 
-  const handleLabelFace = async (label: FaceType, name: string) => {
-    if (!labelModal || !user) return;
-    await supabase.from('faces').insert({
-      embedding: labelModal.embedding,
-      label,
-      name,
-      image_url: labelModal.image,
-      owner_id: user.id
-    });
-    setLabelModal(null);
+  const handleSaveFace = async (updatedFace: Face) => {
+    try {
+      const { error } = await supabase
+        .from('faces')
+        .update(updatedFace)
+        .eq('id', updatedFace.id);
+
+      if (error) throw error;
+
+      setFaces(prev =>
+        prev.map(face =>
+          face.id === updatedFace.id ? updatedFace : face
+        )
+      );
+      setIsEditing(false);
+      setSelectedFace(null);
+    } catch (error) {
+      console.error('Error updating face:', error);
+    }
+  };
+
+  const handleReviewPrompt = () => {
+    setShowReviewPrompt(true);
   };
 
   return (
     <div className="p-4">
-      <h2 className="text-2xl font-bold mb-4">Your Live Feed</h2>
-      
-      <div className="mb-4">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-bold">Facial Recognition</h2>
         <button
-          onClick={toggleStreaming}
-          className={`px-4 py-2 rounded ${
-            isStreaming
-              ? 'bg-red-500 hover:bg-red-600'
-              : 'bg-green-500 hover:bg-green-600'
-          } text-white`}
+          onClick={() => setIsStreaming(!isStreaming)}
+          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
         >
-          {isStreaming ? 'Stop Monitoring' : 'Start Monitoring'}
+          {isStreaming ? 'Stop Stream' : 'Start Stream'}
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <VideoStream
-          videoRef={videoRef}
-          canvasRef={canvasRef}
-          isStreaming={isStreaming}
-        />
-
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <h3 className="text-xl font-semibold mb-3">Detected Faces</h3>
-          <div className="space-y-2">
+          <VideoStream
+            videoRef={videoRef}
+            canvasRef={canvasRef}
+            isStreaming={isStreaming}
+          />
+        </div>
+        <div>
+          <h3 className="text-xl font-semibold mb-4">Detected Faces</h3>
+          <div className="space-y-4">
             {faces.map(face => (
               <FaceCard
                 key={face.id}
                 face={face}
                 onRemove={(id) => setFaces(prev => prev.filter(f => f.id !== id))}
+                onEdit={handleEditFace}
               />
             ))}
           </div>
         </div>
       </div>
+
+      {showReviewPrompt && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 max-w-2xl w-full">
+            <h3 className="text-xl font-bold mb-4">Review Unassigned Faces</h3>
+            <div className="space-y-4">
+              {unassignedFaces.map(face => (
+                <div key={face.id} className="border rounded-lg p-4">
+                  <img
+                    src={face.image_url}
+                    alt="Unassigned face"
+                    className="w-32 h-32 object-cover rounded-lg mb-2"
+                  />
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      placeholder="Name"
+                      className="w-full rounded-lg border-gray-300"
+                      onChange={(e) => {
+                        setUnassignedFaces(prev =>
+                          prev.map(f =>
+                            f.id === face.id ? { ...f, name: e.target.value } : f
+                          )
+                        );
+                      }}
+                    />
+                    <select
+                      className="w-full rounded-lg border-gray-300"
+                      onChange={(e) => {
+                        setUnassignedFaces(prev =>
+                          prev.map(f =>
+                            f.id === face.id ? { ...f, class: e.target.value as FaceClass } : f
+                          )
+                        );
+                      }}
+                    >
+                      <option value="Unknown">Unknown</option>
+                      <option value="Friend">Friend</option>
+                      <option value="Foe">Foe</option>
+                    </select>
+                    <select
+                      className="w-full rounded-lg border-gray-300"
+                      onChange={(e) => {
+                        setUnassignedFaces(prev =>
+                          prev.map(f =>
+                            f.id === face.id ? { ...f, behaviorProfile: e.target.value as BehaviorProfile } : f
+                          )
+                        );
+                      }}
+                    >
+                      <option value="normal">Normal</option>
+                      <option value="suspicious">Suspicious</option>
+                      <option value="threatening">Threatening</option>
+                      <option value="custom">Custom</option>
+                    </select>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end gap-4 mt-4">
+              <button
+                onClick={() => setShowReviewPrompt(false)}
+                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+              >
+                Skip
+              </button>
+              <button
+                onClick={() => {
+                  // Save reviewed faces
+                  setFaces(prev => [...prev, ...unassignedFaces]);
+                  setUnassignedFaces([]);
+                  setShowReviewPrompt(false);
+                }}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isEditing && selectedFace && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 max-w-2xl w-full">
+            <h3 className="text-xl font-bold mb-4">Edit Face Profile</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Name</label>
+                <input
+                  type="text"
+                  value={selectedFace.name}
+                  onChange={(e) => setSelectedFace({ ...selectedFace, name: e.target.value })}
+                  className="mt-1 block w-full rounded-lg border-gray-300"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Class</label>
+                <select
+                  value={selectedFace.class}
+                  onChange={(e) => setSelectedFace({ ...selectedFace, class: e.target.value as FaceClass })}
+                  className="mt-1 block w-full rounded-lg border-gray-300"
+                >
+                  <option value="Friend">Friend</option>
+                  <option value="Unknown">Unknown</option>
+                  <option value="Foe">Foe</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Behavior Profile</label>
+                <select
+                  value={selectedFace.behaviorProfile}
+                  onChange={(e) => setSelectedFace({ ...selectedFace, behaviorProfile: e.target.value as BehaviorProfile })}
+                  className="mt-1 block w-full rounded-lg border-gray-300"
+                >
+                  <option value="normal">Normal</option>
+                  <option value="suspicious">Suspicious</option>
+                  <option value="threatening">Threatening</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Notes</label>
+                <textarea
+                  value={selectedFace.notes || ''}
+                  onChange={(e) => setSelectedFace({ ...selectedFace, notes: e.target.value })}
+                  rows={3}
+                  className="mt-1 block w-full rounded-lg border-gray-300"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-4 mt-4">
+              <button
+                onClick={() => {
+                  setIsEditing(false);
+                  setSelectedFace(null);
+                }}
+                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleSaveFace(selectedFace)}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }; 

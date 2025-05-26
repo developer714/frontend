@@ -19,27 +19,33 @@ interface DeviceCardProps {
 }
 
 const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDisconnect }) => (
-  <div className="border p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow">
-    <div className="flex justify-between items-center">
-      <div>
-        <h4 className="font-medium">{device.name}</h4>
-        <p className="text-sm text-gray-600">Type: {device.type}</p>
-        <p className="text-sm text-gray-600">
-          Status: {device.status}
-        </p>
-        <p className="text-sm text-gray-600">
-          Last seen: {device.lastSeen.toLocaleString()}
-        </p>
+  <div className="relative bg-white border border-yellow-300 rounded-2xl shadow-md hover:shadow-lg transition-shadow p-5 flex flex-col w-full max-w-full overflow-hidden">
+    <div className="flex justify-between items-start mb-2">
+      <div className="flex-1 min-w-0">
+        <h4 className="font-bold text-lg text-gray-900 break-all leading-tight mb-1">{device.name}</h4>
+        <div className="text-xs text-gray-500 mb-1 uppercase tracking-wide">{device.status}</div>
+        <div className="text-xs text-gray-400 mb-2">{device.type}</div>
       </div>
-      <div className="flex space-x-2">
-        <button
-          onClick={() => onDisconnect(device.id)}
-          className="text-red-500 hover:text-red-700"
-        >
-          Disconnect
-        </button>
+      <button
+        className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-white font-semibold px-3 py-1 rounded shadow hover:from-yellow-500 hover:to-yellow-700 text-xs ml-2"
+      >
+        Manage
+      </button>
+    </div>
+    <div className="mt-2 text-xs text-gray-500 break-all">
+      <div className="mb-1">
+        <span className="font-semibold">MAC:</span> <span>{device.id}</span>
+      </div>
+      <div>
+        <span className="font-semibold">Last seen:</span> {device.lastSeen.toLocaleString()}
       </div>
     </div>
+    <button
+      onClick={() => onDisconnect(device.id)}
+      className="bg-red-500 text-white font-semibold px-3 py-2 rounded shadow hover:bg-red-600 text-xs mt-4 w-full"
+    >
+      Delete
+    </button>
   </div>
 );
 
@@ -123,7 +129,7 @@ export const DeviceManager: React.FC = () => {
 
       <div className="mt-6">
         <h3 className="text-xl font-semibold mb-3">Connected Devices</h3>
-        <div className="grid gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 w-full">
           {devices.map((device) => (
             <DeviceCard
               key={device.id}
